@@ -9,5 +9,4 @@ no-SQL DBMS
 2. Supports only string data type.
 3. Each data type supports insert, data access and delete operation.
 4. The DBMS stores all data into a specified file.
-5. The DBMS has a console interface:
-./<your program name> --file <path to the data file> -- query <query to DBMS>
+5. The DBMS has a console interface: "./<your program name> --file <path to the data file> -- query <query to DBMS>"
