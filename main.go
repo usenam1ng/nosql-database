@@ -122,7 +122,7 @@ func (stack *Stack) pop() (string, error) {
 }
 
 func (stack *Stack) push(val string) {
-	newnode := &NodeS{data: val}
+	newnode := new(NodeS)
 	if stack.head == nil {
 		stack.head = newnode
 		stack.head.data = val
@@ -136,7 +136,7 @@ func (stack *Stack) push(val string) {
 //queue
 
 func (queue *Queue) pushQ(val string) {
-	newnode := &NodeQ{data: val}
+	newnode := new(NodeQ)
 	if queue.head == nil {
 		queue.head = newnode
 		queue.tail = newnode
