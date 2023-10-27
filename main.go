@@ -1,11 +1,12 @@
 package main
 
 import (
-	"bufio"
 	"errors"
 	"fmt"
-	"os"
+	"net"
+	"strconv"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -107,6 +108,7 @@ type DataStructure struct {
 
 type MainDataStructure struct {
 	datastructures []DataStructure
+	mutex          sync.Mutex
 }
 
 //---------------------------------
@@ -122,7 +124,7 @@ func (stack *Stack) pop() (string, error) {
 }
 
 func (stack *Stack) push(val string) {
-	newnode := new(NodeS)
+	newnode := &NodeS{data: val}
 	if stack.head == nil {
 		stack.head = newnode
 		stack.head.data = val
@@ -136,7 +138,7 @@ func (stack *Stack) push(val string) {
 //queue
 
 func (queue *Queue) pushQ(val string) {
-	newnode := new(NodeQ)
+	newnode := &NodeQ{data: val}
 	if queue.head == nil {
 		queue.head = newnode
 		queue.tail = newnode
@@ -258,12 +260,18 @@ func (st *Set) DeleteS(key string) bool {
 
 //------------------------------------
 
-func main() {
+func maincode(conn net.Conn) {
 	db := MainDataStructure{}
 	for true {
-		reader := bufio.NewReader(os.Stdin)
-		line, _ := reader.ReadString('\n')
-		str := line
+		buffer := make([]byte, 1024)
+
+		n, err := conn.Read(buffer)
+		if err != nil {
+			fmt.Println("Error reading:", err.Error())
+			return
+		}
+
+		str := string(buffer[:n])
 
 		if str == "quit" {
 			break
@@ -273,13 +281,10 @@ func main() {
 		var val string
 
 		str = strings.Replace(str, "'", "", -1)
-		fmt.Println(str)
 		elements := strings.Split(str, " ")
 		filePtr := elements[1]
 		command := elements[3]
 		structName := elements[4]
-
-		fmt.Println(len(structName))
 
 		if len(elements) == 7 {
 			key = elements[5]
@@ -349,7 +354,12 @@ func main() {
 						fmt.Println(error)
 					} else {
 						found = 1
-						fmt.Println(outputString)
+						response := []byte(outputString)
+						_, err = conn.Write(response)
+						if err != nil {
+							fmt.Println("Error writing:", err.Error())
+							return
+						}
 					}
 				}
 
@@ -380,7 +390,12 @@ func main() {
 						fmt.Println(error)
 					} else {
 						found = 1
-						fmt.Println(outputString)
+						response := []byte(outputString)
+						_, err = conn.Write(response)
+						if err != nil {
+							fmt.Println("Error writing:", err.Error())
+							return
+						}
 					}
 				}
 
@@ -406,12 +421,23 @@ func main() {
 			for i := range db.datastructures[index].hashTables {
 				if db.datastructures[index].hashTables[i].Name == structName {
 					outputString := db.datastructures[index].hashTables[i].Delete(key)
+					out := strconv.FormatBool(outputString)
+					response := []byte(out)
+					_, err = conn.Write(response)
+					if err != nil {
+						fmt.Println("Error writing:", err.Error())
+						return
+					}
 					found = 1
-					fmt.Println(outputString)
 				}
 			}
 			if found == 0 {
-				fmt.Println("Stack does not exist")
+				response := []byte("Stack does not exist")
+				_, err = conn.Write(response)
+				if err != nil {
+					fmt.Println("Error writing:", err.Error())
+					return
+				}
 			}
 		} else if command == "HGET" {
 			found := 0
@@ -422,7 +448,13 @@ func main() {
 						fmt.Println(error)
 					}
 					found = 1
-					fmt.Println(outputString)
+
+					response := []byte(outputString)
+					_, err = conn.Write(response)
+					if err != nil {
+						fmt.Println("Error writing:", err.Error())
+						return
+					}
 				}
 			}
 			if found == 0 {
@@ -447,12 +479,23 @@ func main() {
 			for i := range db.datastructures[index].sets {
 				if db.datastructures[index].sets[i].Name == structName {
 					outputString := db.datastructures[index].sets[i].DeleteS(val)
+					out := strconv.FormatBool(outputString)
+					response := []byte(out)
+					_, err = conn.Write(response)
+					if err != nil {
+						fmt.Println("Error writing:", err.Error())
+						return
+					}
 					found = 1
-					fmt.Println(outputString)
 				}
 			}
 			if found == 0 {
-				fmt.Println("Stack does not exist")
+				response := []byte("Stack does not exist")
+				_, err = conn.Write(response)
+				if err != nil {
+					fmt.Println("Error writing:", err.Error())
+					return
+				}
 			}
 		} else if command == "SISMEMBER" {
 			found := 0
@@ -463,14 +506,26 @@ func main() {
 						fmt.Println(error)
 					}
 					found = 1
-					fmt.Println(outputString)
+
+					response := []byte(outputString)
+					_, err = conn.Write(response)
+					if err != nil {
+						fmt.Println("Error writing:", err.Error())
+						return
+					}
+
 				}
 			}
 			if found == 0 {
-				fmt.Println("Stack does not exist")
+				response := []byte("Stack does not exist")
+				_, err = conn.Write(response)
+				if err != nil {
+					fmt.Println("Error writing:", err.Error())
+					return
+				}
 			}
 		}
-		fmt.Println(db.datastructures[index])
+		//fmt.Println(db.datastructures[index])
 
 		// Преобразовываем структуру в байтовый массив
 		//	jsonData, err := json.MarshalIndent(database, "", "  ")
@@ -488,8 +543,30 @@ func main() {
 	}
 }
 
-// --file filellt.data --query 'PUSH attttt bibki'
+func main() {
+	fmt.Println("Запуск сервера на порту 6379...")
 
-// --file filellt.data --query 'QPOP attttt bibki'
+	// Слушаем порт 6379
+	listener, err := net.Listen("tcp", ":6379")
+	if err != nil {
+		fmt.Println("Ошибка при запуске сервера:", err.Error())
+		return
+	}
+	defer listener.Close()
 
-// --file filellt.data --query 'SADD myhash key value'
+	// Принимаем новые соединения и запускаем их обработку в отдельных горутинах
+	for {
+		conn, err := listener.Accept()
+		if err != nil {
+			fmt.Println("Ошибка при принятии соединения:", err.Error())
+			continue
+		}
+		go maincode(conn)
+	}
+}
+
+// --file filellt.data --query 'SPUSH attttt bibki'
+
+// --file filellt.data --query 'SPOP attttt bibki'
+
+// --file filellt.data --query ' myhash key value'
