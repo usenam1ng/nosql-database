@@ -63,8 +63,9 @@ func (ht *HashTable) hashFunc(a int, key string) int {
 	return ans
 }
 
-func NewHashTable(capacity int) *HashTable {
+func NewHashTable(capacity int, stname string) *HashTable {
 	return &HashTable{
+		Name:     stname,
 		Table:    make([]*NodeH, capacity),
 		Capacity: capacity,
 	}
@@ -178,26 +179,18 @@ func (ht *HashTable) Add(key, value string) {
 
 func (ht *HashTable) Get(key string) (string, bool) {
 	index := ht.hashFunc(1, key)
-	if ht.Table[index] != nil {
-		for _, node := range ht.Table {
-			if node.Key == key {
-				return node.Value, true
-			}
-		}
+	if ht.Table[index] != nil && ht.Table[index].Key == key {
+		return ht.Table[index].Value, true
 	}
 	return "", false
 }
 
-func (st *HashTable) Delete(key string) bool {
-	index := st.hashFunc(1, key)
-	if st.Table[index] != nil {
-		for _, node := range st.Table {
-			if node.Key == key {
-				node.Key = "0"
-				node.Value = "0"
-				return true
-			}
-		}
+func (ht *HashTable) Delete(key string) bool {
+	index := ht.hashFunc(1, key)
+	if ht.Table[index] != nil && ht.Table[index].Key == key {
+		ht.Table[index].Key = "0"
+		ht.Table[index].Value = "0"
+		return true
 	}
 	return false
 }
@@ -207,40 +200,33 @@ func (st *HashTable) Delete(key string) bool {
 func (st *Set) AddS(key, value string) {
 	index := st.hashFuncSet(1, key)
 	node := &NodeSH{Key: key, Value: "1"}
-	if st.Set[index] != nil {
+	if st.Set[index] == nil {
+		st.Set[index] = node
+	} else {
 		for i := 2; i < 32; i++ {
 			index := st.hashFuncSet(i, key)
 			if st.Set[index] == nil {
 				st.Set[index] = node
+				break
 			}
 		}
-	} else {
-		st.Set[index] = node
 	}
 }
 
 func (st *Set) GetS(key string) (string, bool) {
 	index := st.hashFuncSet(1, key)
-	if st.Set[index] != nil {
-		for _, node := range st.Set {
-			if node.Key == key {
-				return node.Value, true
-			}
-		}
+	if st.Set[index] != nil && st.Set[index].Key == key {
+		return st.Set[index].Value, true
 	}
 	return "", false
 }
 
 func (st *Set) DeleteS(key string) bool {
 	index := st.hashFuncSet(1, key)
-	if st.Set[index] != nil {
-		for _, node := range st.Set {
-			if node.Key == key {
-				node.Key = "0"
-				node.Value = "0"
-				return true
-			}
-		}
+	if st.Set[index] != nil && st.Set[index].Key == key {
+		st.Set[index].Key = "0"
+		st.Set[index].Value = "0"
+		return true
 	}
 	return false
 }
@@ -271,7 +257,9 @@ func maincode(conn net.Conn) {
 			return
 		}
 
-		str := string(buffer[:n])
+		line := string(buffer[:n])
+		str := strings.ReplaceAll(line, "\"", "")
+		str = strings.ReplaceAll(str, "'", "")
 
 		if str == "quit" {
 			break
@@ -280,17 +268,17 @@ func maincode(conn net.Conn) {
 		var key string
 		var val string
 
-		str = strings.Replace(str, "'", "", -1)
 		elements := strings.Split(str, " ")
-		filePtr := elements[1]
-		command := elements[3]
-		structName := elements[4]
+		filePtr := strings.TrimSpace(elements[1])
+		command := strings.TrimSpace(elements[3])
+		structName := strings.TrimSpace(elements[4])
 
 		if len(elements) == 7 {
-			key = elements[5]
-			val = elements[6]
+			key = strings.TrimSpace(elements[5])
+			val = strings.TrimSpace(elements[6])
 		} else if len(elements) == 6 {
-			val = elements[5]
+			key = strings.TrimSpace(elements[5])
+			val = strings.TrimSpace(elements[5])
 		}
 
 		found := 0
@@ -354,7 +342,7 @@ func maincode(conn net.Conn) {
 						fmt.Println(error)
 					} else {
 						found = 1
-						response := []byte(outputString)
+						response := []byte(outputString + "\n")
 						_, err = conn.Write(response)
 						if err != nil {
 							fmt.Println("Error writing:", err.Error())
@@ -390,7 +378,7 @@ func maincode(conn net.Conn) {
 						fmt.Println(error)
 					} else {
 						found = 1
-						response := []byte(outputString)
+						response := []byte(outputString + "\n")
 						_, err = conn.Write(response)
 						if err != nil {
 							fmt.Println("Error writing:", err.Error())
@@ -412,7 +400,7 @@ func maincode(conn net.Conn) {
 				}
 			}
 			if found == 0 {
-				newTable := NewHashTable(512)
+				newTable := NewHashTable(512, structName)
 				newTable.Add(key, val)
 				db.datastructures[index].hashTables = append(db.datastructures[index].hashTables, *newTable)
 			}
@@ -422,7 +410,7 @@ func maincode(conn net.Conn) {
 				if db.datastructures[index].hashTables[i].Name == structName {
 					outputString := db.datastructures[index].hashTables[i].Delete(key)
 					out := strconv.FormatBool(outputString)
-					response := []byte(out)
+					response := []byte(out + "\n")
 					_, err = conn.Write(response)
 					if err != nil {
 						fmt.Println("Error writing:", err.Error())
@@ -449,7 +437,7 @@ func maincode(conn net.Conn) {
 					}
 					found = 1
 
-					response := []byte(outputString)
+					response := []byte(outputString + "\n")
 					_, err = conn.Write(response)
 					if err != nil {
 						fmt.Println("Error writing:", err.Error())
@@ -458,7 +446,7 @@ func maincode(conn net.Conn) {
 				}
 			}
 			if found == 0 {
-				fmt.Println("Stack does not exist")
+				fmt.Println("Hashtable does not exist")
 			}
 		} else if command == "SADD" {
 			found := 0
@@ -480,7 +468,7 @@ func maincode(conn net.Conn) {
 				if db.datastructures[index].sets[i].Name == structName {
 					outputString := db.datastructures[index].sets[i].DeleteS(val)
 					out := strconv.FormatBool(outputString)
-					response := []byte(out)
+					response := []byte(out + "\n")
 					_, err = conn.Write(response)
 					if err != nil {
 						fmt.Println("Error writing:", err.Error())
@@ -507,7 +495,7 @@ func maincode(conn net.Conn) {
 					}
 					found = 1
 
-					response := []byte(outputString)
+					response := []byte(outputString + "\n")
 					_, err = conn.Write(response)
 					if err != nil {
 						fmt.Println("Error writing:", err.Error())
@@ -564,6 +552,12 @@ func main() {
 		go maincode(conn)
 	}
 }
+
+// --file filellt.data --query 'HSET attttt bibki ajdfhkhf'
+
+// --file filellt.data --query 'HGET attttt bibki ajdfhkhf'
+
+// --file filellt.data --query 'HDEL attttt bibki'
 
 // --file filellt.data --query 'SPUSH attttt bibki'
 
