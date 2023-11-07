@@ -79,12 +79,12 @@ type NodeSH struct {
 }
 
 type Set struct {
-	Name       string
-	Set        []*NodeSH
-	Capacility int
+	Name     string
+	Table    []*NodeSH
+	Capacity int
 }
 
-func (ht *Set) hashFuncSet(a int, key string) int {
+func (st  Set) hashfuncSet(a int, key string) int {
 	sum1 := 0
 	sum2 := 0
 	for _, c := range key {
@@ -95,8 +95,16 @@ func (ht *Set) hashFuncSet(a int, key string) int {
 		sum2 += (int(c) % 2)
 	}
 
-	ans := (sum1 + a*sum2) / ht.Capacility
+	ans := (sum1 + a*sum2) % st.Capacity
 	return ans
+}
+
+func newSet(capacity int, stname string) *Set {
+	return &Set{
+		Name:     stname,
+		Table:    make([]*NodeSH, capacity),
+		Capacity: capacity,
+	}
 }
 
 type DataStructure struct {
@@ -198,15 +206,15 @@ func (ht *HashTable) Delete(key string) bool {
 //set
 
 func (st *Set) AddS(key, value string) {
-	index := st.hashFuncSet(1, key)
-	node := &NodeSH{Key: key, Value: "1"}
-	if st.Set[index] == nil {
-		st.Set[index] = node
+	index := st.hashfuncSet(1, key)
+	node := &NodeSH{Key: key, Value: value}
+	if st.Table[index] == nil {
+		st.Table[index] = node
 	} else {
 		for i := 2; i < 32; i++ {
-			index := st.hashFuncSet(i, key)
-			if st.Set[index] == nil {
-				st.Set[index] = node
+			index := st.hashfuncSet(i, key)
+			if st.Table[index] == nil {
+				st.Table[index] = node
 				break
 			}
 		}
@@ -214,18 +222,18 @@ func (st *Set) AddS(key, value string) {
 }
 
 func (st *Set) GetS(key string) (string, bool) {
-	index := st.hashFuncSet(1, key)
-	if st.Set[index] != nil && st.Set[index].Key == key {
-		return st.Set[index].Value, true
+	index := st.hashfuncSet(1, key)
+	if st.Table[index] != nil && st.Table[index].Key == key {
+		return st.Table[index].Value, true
 	}
 	return "", false
 }
 
 func (st *Set) DeleteS(key string) bool {
-	index := st.hashFuncSet(1, key)
-	if st.Set[index] != nil && st.Set[index].Key == key {
-		st.Set[index].Key = "0"
-		st.Set[index].Value = "0"
+	index := st.hashfuncSet(1, key)
+	if st.Table[index] != nil && st.Table[index].Key == key {
+		st.Table[index].Key = "0"
+		st.Table[index].Value = "0"
 		return true
 	}
 	return false
@@ -368,10 +376,10 @@ func main() {
 				}
 			}
 			if found == 0 {
-				newTable := NewHashTable(512, structName)
-				newTable.Name = structName
-				newTable.Add(key, val)
-				db.datastructures[index].hashTables = append(db.datastructures[index].hashTables, *newTable)
+				newSet := NewHashTable(512, structName)
+				newSet.Name = structName
+				newSet.Add(key, val)
+				db.datastructures[index].hashTables = append(db.datastructures[index].hashTables, *newSet)
 			}
 		} else if command == "HDEL" {
 			found := 0
@@ -404,21 +412,21 @@ func main() {
 			found := 0
 			for i := range db.datastructures[index].sets {
 				if db.datastructures[index].sets[i].Name == structName {
-					db.datastructures[index].sets[i].AddS(val, "0")
+					db.datastructures[index].sets[i].AddS(key, "1")
 					found = 1
 				}
 			}
 			if found == 0 {
-				newSet := Set{Name: structName}
-				newSet.AddS(val, "0")
-				db.datastructures[index].sets = append(db.datastructures[index].sets, newSet)
+				newSet := newSet(512, structName)
+				newSet.Name = structName
+				newSet.AddS(key, "1")
+				db.datastructures[index].sets = append(db.datastructures[index].sets, *newSet)
 			}
-
 		} else if command == "SREM" {
 			found := 0
 			for i := range db.datastructures[index].sets {
 				if db.datastructures[index].sets[i].Name == structName {
-					outputString := db.datastructures[index].sets[i].DeleteS(val)
+					outputString := db.datastructures[index].sets[i].DeleteS(key)
 					found = 1
 					fmt.Println(outputString)
 				}
@@ -430,7 +438,7 @@ func main() {
 			found := 0
 			for i := range db.datastructures[index].sets {
 				if db.datastructures[index].sets[i].Name == structName {
-					outputString, error := db.datastructures[index].sets[i].GetS(val)
+					outputString, error := db.datastructures[index].sets[i].GetS(key)
 					if error == false {
 						fmt.Println(error)
 					}
@@ -460,8 +468,10 @@ func main() {
 	}
 }
 
-// --file filellt.data --query 'PUSH attttt bibki'
+// --file filellt.data --query 'QPUSH attttt bibki'
 
 // --file filellt.data --query 'QPOP attttt bibki'
 
 // --file filellt.data --query 'SADD myhash key value'
+
+// --file filellt.data --query 'SISMEMBER myhash key value'
