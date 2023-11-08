@@ -7,7 +7,6 @@ import (
 	"strconv"
 	"strings"
 	"sync"
-	"time"
 )
 
 // stack
@@ -84,7 +83,7 @@ type Set struct {
 	Capacity int
 }
 
-func (st  Set) hashfuncSet(a int, key string) int {
+func (st Set) hashfuncSet(a int, key string) int {
 	sum1 := 0
 	sum2 := 0
 	for _, c := range key {
@@ -254,283 +253,292 @@ func (st *Set) DeleteS(key string) bool {
 
 //------------------------------------
 
+var db MainDataStructure
+
 func maincode(conn net.Conn) {
-	db := MainDataStructure{}
-	for true {
-		buffer := make([]byte, 1024)
+	buffer := make([]byte, 1024)
 
-		n, err := conn.Read(buffer)
-		if err != nil {
-			fmt.Println("Error reading:", err.Error())
-			return
+	n, err := conn.Read(buffer)
+	if err != nil {
+		fmt.Println("Error reading:", err.Error())
+		return
+	}
+
+	line := string(buffer[:n])
+	str := strings.ReplaceAll(line, "\"", "")
+	str = strings.ReplaceAll(str, "'", "")
+
+	if str == "quit" {
+		break
+	}
+
+	var key string
+	var val string
+
+	elements := strings.Split(str, " ")
+	filePtr := strings.TrimSpace(elements[1])
+	command := strings.TrimSpace(elements[3])
+	structName := strings.TrimSpace(elements[4])
+
+	fmt.Println(structName, len(structName))
+
+	if len(elements) == 7 {
+		key = strings.TrimSpace(elements[5])
+		val = strings.TrimSpace(elements[6])
+	} else if len(elements) == 6 {
+		key = strings.TrimSpace(elements[5])
+		val = strings.TrimSpace(elements[5])
+	}
+
+	fmt.Println("Key - ", key, len(key))
+	fmt.Println("Val - ", val, len(val))
+	fmt.Println("Command - ", command, len(command))
+
+	found := 0
+	index := 0
+
+	for i := range db.datastructures {
+		if db.datastructures[i].name == filePtr {
+			index = i
+			found = 1
 		}
+	}
+	if found == 0 {
+		newStruct := DataStructure{name: filePtr}
+		db.datastructures = append(db.datastructures, newStruct)
+		index = len(db.datastructures) - 1
+	}
 
-		line := string(buffer[:n])
-		str := strings.ReplaceAll(line, "\"", "")
-		str = strings.ReplaceAll(str, "'", "")
+	// Проверяем, существует ли файл
+	//	if _, err := os.Stat(filePtr); os.IsNotExist(err) {
+	// Файл не существует, создаем его
+	//		file, err := os.Create(filePtr)
+	//		if err != nil {
+	//			return
+	//		}
+	//		file.Close()
+	//		database = DataStructure{}
+	//		saveStructure(filePtr, database)
+	//	} else {
+	// Файл существует, открываем его и читаем содержимое
+	//		content, err := ioutil.ReadFile(filePtr)
+	//		err = json.Unmarshal(content, &database)
+	//		if err != nil {
+	//			return
+	//		}
+	//	}
 
-		if str == "quit" {
-			break
-		}
+	// Обработка каждой входной команд
 
-		var key string
-		var val string
+	db.mutex.Lock()
 
-		elements := strings.Split(str, " ")
-		filePtr := strings.TrimSpace(elements[1])
-		command := strings.TrimSpace(elements[3])
-		structName := strings.TrimSpace(elements[4])
-
-		if len(elements) == 7 {
-			key = strings.TrimSpace(elements[5])
-			val = strings.TrimSpace(elements[6])
-		} else if len(elements) == 6 {
-			key = strings.TrimSpace(elements[5])
-			val = strings.TrimSpace(elements[5])
-		}
-
+	if command == "SPUSH" {
 		found := 0
-		index := 0
+		for i := range db.datastructures[index].stacks {
+			if db.datastructures[index].stacks[i].Name == structName {
+				db.datastructures[index].stacks[i].push(val)
+				found = 1
+			}
 
-		for i := range db.datastructures {
-			if db.datastructures[i].name == filePtr {
-				index = i
+		}
+		if found == 0 {
+			newStack := Stack{Name: structName}
+			newStack.push(val)
+			db.datastructures[index].stacks = append(db.datastructures[index].stacks, newStack)
+		}
+	} else if command == "SPOP" {
+		found := 0
+		for i := range db.datastructures[index].stacks {
+			if db.datastructures[index].stacks[i].Name == structName {
+				outputString, error := db.datastructures[index].stacks[i].pop()
+				if error != nil {
+					fmt.Println(error)
+				} else {
+					found = 1
+					response := []byte(outputString + "\n")
+					_, err = conn.Write(response)
+					if err != nil {
+						fmt.Println("Error writing:", err.Error())
+						return
+					}
+				}
+			}
+
+		}
+		if found == 0 {
+			fmt.Println("Stack does not exist")
+		}
+	} else if command == "QPUSH" {
+		found := 0
+		for i := range db.datastructures[index].queues {
+			if db.datastructures[index].queues[i].Name == structName {
+				db.datastructures[index].queues[i].pushQ(val)
+				found = 1
+			}
+
+		}
+		if found == 0 {
+			newQueue := Queue{Name: structName}
+			newQueue.pushQ(val)
+			db.datastructures[index].queues = append(db.datastructures[index].queues, newQueue)
+		}
+	} else if command == "QPOP" {
+		found := 0
+		for i := range db.datastructures[index].queues {
+			if db.datastructures[index].queues[i].Name == structName {
+				outputString, error := db.datastructures[index].queues[i].popQ()
+				if error != nil {
+					fmt.Println(error)
+				} else {
+					found = 1
+					response := []byte(outputString + "\n")
+					_, err = conn.Write(response)
+					if err != nil {
+						fmt.Println("Error writing:", err.Error())
+						return
+					}
+				}
+			}
+
+		}
+		if found == 0 {
+			fmt.Println("Stack does not exist")
+		}
+	} else if command == "HSET" {
+		found := 0
+		for i := range db.datastructures[index].hashTables {
+			if db.datastructures[index].hashTables[i].Name == structName {
+				db.datastructures[index].hashTables[i].Add(key, val)
 				found = 1
 			}
 		}
 		if found == 0 {
-			newStruct := DataStructure{name: filePtr}
-			db.datastructures = append(db.datastructures, newStruct)
-			index = len(db.datastructures) - 1
+			newTable := NewHashTable(512, structName)
+			newTable.Add(key, val)
+			db.datastructures[index].hashTables = append(db.datastructures[index].hashTables, *newTable)
 		}
-
-		time.Sleep(time.Second)
-
-		// Проверяем, существует ли файл
-		//	if _, err := os.Stat(filePtr); os.IsNotExist(err) {
-		// Файл не существует, создаем его
-		//		file, err := os.Create(filePtr)
-		//		if err != nil {
-		//			return
-		//		}
-		//		file.Close()
-		//		database = DataStructure{}
-		//		saveStructure(filePtr, database)
-		//	} else {
-		// Файл существует, открываем его и читаем содержимое
-		//		content, err := ioutil.ReadFile(filePtr)
-		//		err = json.Unmarshal(content, &database)
-		//		if err != nil {
-		//			return
-		//		}
-		//	}
-
-		// Обработка каждой входной команд
-
-		if command == "SPUSH" {
-			found := 0
-			for i := range db.datastructures[index].stacks {
-				if db.datastructures[index].stacks[i].Name == structName {
-					db.datastructures[index].stacks[i].push(val)
-					found = 1
+	} else if command == "HDEL" {
+		found := 0
+		for i := range db.datastructures[index].hashTables {
+			if db.datastructures[index].hashTables[i].Name == structName {
+				outputString := db.datastructures[index].hashTables[i].Delete(key)
+				out := strconv.FormatBool(outputString)
+				response := []byte(out + "\n")
+				_, err = conn.Write(response)
+				if err != nil {
+					fmt.Println("Error writing:", err.Error())
+					return
 				}
+				found = 1
+			}
+		}
+		if found == 0 {
+			response := []byte("Stack does not exist")
+			_, err = conn.Write(response)
+			if err != nil {
+				fmt.Println("Error writing:", err.Error())
+				return
+			}
+		}
+	} else if command == "HGET" {
+		found := 0
+		for i := range db.datastructures[index].hashTables {
+			if db.datastructures[index].hashTables[i].Name == structName {
+				outputString, error := db.datastructures[index].hashTables[i].Get(key)
+				if error == false {
+					fmt.Println(error)
+				}
+				found = 1
 
-			}
-			if found == 0 {
-				newStack := Stack{Name: structName}
-				newStack.push(val)
-				db.datastructures[index].stacks = append(db.datastructures[index].stacks, newStack)
-			}
-		} else if command == "SPOP" {
-			found := 0
-			for i := range db.datastructures[index].stacks {
-				if db.datastructures[index].stacks[i].Name == structName {
-					outputString, error := db.datastructures[index].stacks[i].pop()
-					if error != nil {
-						fmt.Println(error)
-					} else {
-						found = 1
-						response := []byte(outputString + "\n")
-						_, err = conn.Write(response)
-						if err != nil {
-							fmt.Println("Error writing:", err.Error())
-							return
-						}
-					}
-				}
-
-			}
-			if found == 0 {
-				fmt.Println("Stack does not exist")
-			}
-		} else if command == "QPUSH" {
-			found := 0
-			for i := range db.datastructures[index].queues {
-				if db.datastructures[index].queues[i].Name == structName {
-					db.datastructures[index].queues[i].pushQ(val)
-					found = 1
-				}
-
-			}
-			if found == 0 {
-				newQueue := Queue{Name: structName}
-				newQueue.pushQ(val)
-				db.datastructures[index].queues = append(db.datastructures[index].queues, newQueue)
-			}
-		} else if command == "QPOP" {
-			found := 0
-			for i := range db.datastructures[index].queues {
-				if db.datastructures[index].queues[i].Name == structName {
-					outputString, error := db.datastructures[index].queues[i].popQ()
-					if error != nil {
-						fmt.Println(error)
-					} else {
-						found = 1
-						response := []byte(outputString + "\n")
-						_, err = conn.Write(response)
-						if err != nil {
-							fmt.Println("Error writing:", err.Error())
-							return
-						}
-					}
-				}
-
-			}
-			if found == 0 {
-				fmt.Println("Stack does not exist")
-			}
-		} else if command == "HSET" {
-			found := 0
-			for i := range db.datastructures[index].hashTables {
-				if db.datastructures[index].hashTables[i].Name == structName {
-					db.datastructures[index].hashTables[i].Add(key, val)
-					found = 1
-				}
-			}
-			if found == 0 {
-				newTable := NewHashTable(512, structName)
-				newTable.Add(key, val)
-				db.datastructures[index].hashTables = append(db.datastructures[index].hashTables, *newTable)
-			}
-		} else if command == "HDEL" {
-			found := 0
-			for i := range db.datastructures[index].hashTables {
-				if db.datastructures[index].hashTables[i].Name == structName {
-					outputString := db.datastructures[index].hashTables[i].Delete(key)
-					out := strconv.FormatBool(outputString)
-					response := []byte(out + "\n")
-					_, err = conn.Write(response)
-					if err != nil {
-						fmt.Println("Error writing:", err.Error())
-						return
-					}
-					found = 1
-				}
-			}
-			if found == 0 {
-				response := []byte("Stack does not exist")
+				response := []byte(outputString + "\n")
 				_, err = conn.Write(response)
 				if err != nil {
 					fmt.Println("Error writing:", err.Error())
 					return
 				}
 			}
-		} else if command == "HGET" {
-			found := 0
-			for i := range db.datastructures[index].hashTables {
-				if db.datastructures[index].hashTables[i].Name == structName {
-					outputString, error := db.datastructures[index].hashTables[i].Get(key)
-					if error == false {
-						fmt.Println(error)
-					}
-					found = 1
+		}
+		if found == 0 {
+			fmt.Println("Hashtable does not exist")
+		}
+	} else if command == "SADD" {
+		found := 0
+		for i := range db.datastructures[index].sets {
+			if db.datastructures[index].sets[i].Name == structName {
+				db.datastructures[index].sets[i].AddS(key, "1")
+				found = 1
+			}
+		}
+		if found == 0 {
+			newSet := newSet(512, structName)
+			newSet.Name = structName
+			newSet.AddS(key, "1")
+			db.datastructures[index].sets = append(db.datastructures[index].sets, *newSet)
+		}
+	} else if command == "SREM" {
+		found := 0
+		for i := range db.datastructures[index].sets {
+			if db.datastructures[index].sets[i].Name == structName {
+				outputString := db.datastructures[index].sets[i].DeleteS(key)
+				out := strconv.FormatBool(outputString)
+				response := []byte(out + "\n")
+				_, err = conn.Write(response)
+				if err != nil {
+					fmt.Println("Error writing:", err.Error())
+					return
+				}
+				found = 1
+			}
+		}
+		if found == 0 {
+			response := []byte("Stack does not exist")
+			_, err = conn.Write(response)
+			if err != nil {
+				fmt.Println("Error writing:", err.Error())
+				return
+			}
+		}
+	} else if command == "SISMEMBER" {
+		found := 0
+		for i := range db.datastructures[index].sets {
+			if db.datastructures[index].sets[i].Name == structName {
+				outputString, error := db.datastructures[index].sets[i].GetS(key)
+				if error == false {
+					fmt.Println(error)
+				}
+				found = 1
 
-					response := []byte(outputString + "\n")
-					_, err = conn.Write(response)
-					if err != nil {
-						fmt.Println("Error writing:", err.Error())
-						return
-					}
-				}
-			}
-			if found == 0 {
-				fmt.Println("Hashtable does not exist")
-			}
-		} else if command == "SADD" {
-			found := 0
-			for i := range db.datastructures[index].sets {
-				if db.datastructures[index].sets[i].Name == structName {
-					db.datastructures[index].sets[i].AddS(key, "1")
-					found = 1
-				}
-			}
-			if found == 0 {
-				newSet := newSet(512, structName)
-				newSet.Name = structName
-				newSet.AddS(key, "1")
-				db.datastructures[index].sets = append(db.datastructures[index].sets, *newSet)
-			}
-		} else if command == "SREM" {
-			found := 0
-			for i := range db.datastructures[index].sets {
-				if db.datastructures[index].sets[i].Name == structName {
-					outputString := db.datastructures[index].sets[i].DeleteS(key)
-					out := strconv.FormatBool(outputString)
-					response := []byte(out + "\n")
-					_, err = conn.Write(response)
-					if err != nil {
-						fmt.Println("Error writing:", err.Error())
-						return
-					}
-					found = 1
-				}
-			}
-			if found == 0 {
-				response := []byte("Stack does not exist")
+				response := []byte(outputString + "\n")
 				_, err = conn.Write(response)
 				if err != nil {
 					fmt.Println("Error writing:", err.Error())
 					return
 				}
 			}
-		} else if command == "SISMEMBER" {
-			found := 0
-			for i := range db.datastructures[index].sets {
-				if db.datastructures[index].sets[i].Name == structName {
-					outputString, error := db.datastructures[index].sets[i].GetS(key)
-					if error == false {
-						fmt.Println(error)
-					}
-					found = 1
-
-					response := []byte(outputString + "\n")
-					_, err = conn.Write(response)
-					if err != nil {
-						fmt.Println("Error writing:", err.Error())
-						return
-					}
-				}
-			}
-			if found == 0 {
-				fmt.Println("Hashtable does not exist")
-			}
 		}
-		//fmt.Println(db.datastructures[index])
-
-		// Преобразовываем структуру в байтовый массив
-		//	jsonData, err := json.MarshalIndent(database, "", "  ")
-		//	if err != nil {
-		//		fmt.Println("Ошибка при маршалинге структуры в JSON:", err)
-		//		return
-		//	}
-
-		// Записываем байтовый массив в файл
-		//	err = ioutil.WriteFile(filePtr, jsonData, 0644)
-		//	if err != nil {
-		//		fmt.Println("Ошибка при записи данных в файл:", err)
-		//		return
-		//	}
+		if found == 0 {
+			fmt.Println("Hashtable does not exist")
+		}
 	}
+
+	db.mutex.Unlock()
+
+	fmt.Println(db.datastructures[index])
+	//fmt.Println(db.datastructures[index])
+
+	// Преобразовываем структуру в байтовый массив
+	//	jsonData, err := json.MarshalIndent(database, "", "  ")
+	//	if err != nil {
+	//		fmt.Println("Ошибка при маршалинге структуры в JSON:", err)
+	//		return
+	//	}
+
+	// Записываем байтовый массив в файл
+	//	err = ioutil.WriteFile(filePtr, jsonData, 0644)
+	//	if err != nil {
+	//		fmt.Println("Ошибка при записи данных в файл:", err)
+	//		return
+	//	}
 }
 
 func main() {
@@ -554,15 +562,3 @@ func main() {
 		go maincode(conn)
 	}
 }
-
-// --file filellt.data --query 'HSET attttt bibki ajdfhkhf'
-
-// --file filellt.data --query 'HGET attttt bibki ajdfhkhf'
-
-// --file filellt.data --query 'HDEL attttt bibki'
-
-// --file filellt.data --query 'SPUSH attttt bibki'
-
-// --file filellt.data --query 'SPOP attttt bibki'
-
-// --file filellt.data --query ' myhash key value'
