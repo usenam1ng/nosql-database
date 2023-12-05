@@ -1,13 +1,41 @@
 package main
 
 import (
+	"bytes"
+	"encoding/json"
 	"fmt"
 	"log"
 	"math/rand"
 	"net"
 	"net/http"
+	"strings"
 	"time"
 )
+
+type report struct {
+	ShortUrl string `json:"shortURL"`
+	OutLink  string `json:"outLink"`
+	Host     string `json:"originHost"`
+}
+
+func sendStats(new string, last string, conn string) {
+	some := report{
+		ShortUrl: new,
+		OutLink:  strings.Trim(last, "\u0000"),
+		Host:     conn,
+	}
+
+	jsonPost, err := json.Marshal(some)
+
+	data := []byte(jsonPost)
+	r := bytes.NewReader(data)
+
+	_, err = http.Post("http://127.0.0.1:6565", "application/json", r)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+}
 
 // Функция для генерации случайной строки
 func generateRandomString() string {
@@ -76,6 +104,10 @@ func handle(w http.ResponseWriter, r *http.Request) {
 
 		longurl := string(buffer[:n])
 
+		host, _, _ := net.SplitHostPort(r.RemoteAddr)
+
+		sendStats(newurl, longurl, host)
+
 		http.Redirect(w, r, longurl, http.StatusSeeOther)
 
 	}
@@ -84,8 +116,8 @@ func handle(w http.ResponseWriter, r *http.Request) {
 func main() {
 	http.HandleFunc("/", handle)             // Устанавливаем роутер
 	err := http.ListenAndServe(":8080", nil) // устанавливаем порт веб-сервера
+
 	if err != nil {
 		log.Fatal("ListenAndServe: ", err)
 	}
 }
-
