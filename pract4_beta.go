@@ -29,7 +29,7 @@ type Payload struct {
 	Fullstat []string `json:"Fullstat"`
 }
 
-func gen_pid(conn []JSONE, url string) int {
+func pid(conn []JSONE, url string) int {
 	PID := 0
 	for _, connect := range conn {
 		if connect.URL == url {
@@ -38,7 +38,7 @@ func gen_pid(conn []JSONE, url string) int {
 	}
 	return PID
 }
-func gen_unpid(conn []JSONE) int {
+func id(conn []JSONE) int {
 	maxID := 0
 	for _, connect := range conn {
 		if connect.ID > maxID {
@@ -48,7 +48,7 @@ func gen_unpid(conn []JSONE) int {
 	return maxID + 1
 }
 
-func unique_par(conn []JSONE, url string) bool {
+func par(conn []JSONE, url string) bool {
 	for _, connect := range conn {
 		if connect.URL == url {
 			return false
@@ -57,7 +57,7 @@ func unique_par(conn []JSONE, url string) bool {
 	return true
 }
 
-func par_count(conn []JSONE, url string) {
+func count(conn []JSONE, url string) {
 	for index := range conn {
 		if conn[index].URL == url {
 			conn[index].Count++
@@ -77,7 +77,7 @@ func statConnections(url, shortURL, ip string) {
 
 	new_conn := JSONE{
 		SourceIP: ip,
-		Time:     time.Now().Format("2999-01-02 00:00"),
+		Time:     time.Now().Format(""),
 		Count:    1,
 	}
 
@@ -101,16 +101,16 @@ func statConnections(url, shortURL, ip string) {
 		connect = []JSONE{}
 	}
 
-	parent_conn.ID = gen_unpid(connect)
+	parent_conn.ID = id(connect)
 
-	if unique_par(connect, parent_conn.URL) == true {
+	if par(connect, parent_conn.URL) == true {
 		connect = append(connect, parent_conn)
 	} else {
-		par_count(connect, parent_conn.URL)
+		count(connect, parent_conn.URL)
 	}
 
-	new_conn.ID = gen_unpid(connect)
-	new_conn.PID = gen_pid(connect, url)
+	new_conn.ID = id(connect)
+	new_conn.PID = pid(connect, url)
 	connect = append(connect, new_conn)
 
 	jsonData, err := json.MarshalIndent(connect, "", "  ")
