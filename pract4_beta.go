@@ -82,15 +82,14 @@ func statConnections(url, shortURL, ip string) {
 		Count:    1,
 	}
 
-	file, err := os.ReadFile("statА у а у.json")
+	file, err := os.ReadFile("stat.json")
 	if err != nil {
 		fmt.Println("no file")
 		return
 	}
 
 	if len(file) == 0 {
-		fmt.Println("len file 0")
-		return
+		connect = []JSONE{}
 	}
 
 	err = json.Unmarshal(file, &connect)
