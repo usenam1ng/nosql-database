@@ -1,40 +1,29 @@
 package main
 
 import (
-	"bytes"
-	"encoding/json"
 	"fmt"
 	"log"
 	"math/rand"
 	"net"
 	"net/http"
-	"strings"
 	"time"
 )
 
-type report struct {
-	ShortUrl string `json:"shortURL"`
-	OutLink  string `json:"outLink"`
-	Host     string `json:"originHost"`
-}
+func send_values(new string, last string, conn string) {
+	ans := new + " " + last + " " + conn
 
-func sendStats(new string, last string, conn string) {
-	some := report{
-		ShortUrl: new,
-		OutLink:  strings.Trim(last, "\u0000"),
-		Host:     conn,
-	}
-
-	jsonPost, err := json.Marshal(some)
-
-	data := []byte(jsonPost)
-	r := bytes.NewReader(data)
-
-	_, err = http.Post("http://127.0.0.1:6565", "application/json", r)
+	con, err := net.Dial("tcp", "127.0.0.1:6575")
 	if err != nil {
 		fmt.Println(err)
 		return
 	}
+	defer con.Close()
+
+	if _, err = con.Write([]byte(ans)); err != nil {
+		fmt.Println(err)
+		return
+	}
+
 }
 
 // Функция для генерации случайной строки
@@ -106,7 +95,7 @@ func handle(w http.ResponseWriter, r *http.Request) {
 
 		host, _, _ := net.SplitHostPort(r.RemoteAddr)
 
-		sendStats(newurl, longurl, host)
+		send_values(newurl, longurl, host)
 
 		http.Redirect(w, r, longurl, http.StatusSeeOther)
 
