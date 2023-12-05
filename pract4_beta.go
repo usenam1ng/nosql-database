@@ -3,10 +3,9 @@ package main
 import (
 	"encoding/json"
 	"fmt"
-	"log"
-	"math/rand"
-	"net/http"
+	"net"
 	"os"
+	"strings"
 	"time"
 )
 
@@ -127,26 +126,37 @@ func statConnections(url, shortURL, ip string) {
 	}
 }
 
-func handle(w http.ResponseWriter, r *http.Request) {
-	var report connectionReport
+func handle(conn net.Conn) {
+	buffer := make([]byte, 1024)
 
-	err := json.NewDecoder(r.Body).Decode(&report)
-
+	n, err := conn.Read(buffer)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		fmt.Println("Error reading:", err.Error())
 		return
 	}
 
-	statConnections(report.OutLink, report.ShortUrl, report.Host)
+	line := string(buffer[:n])
+	elements := strings.Split(line, " ")
+
+	statConnections(elements[0], elements[1], elements[2])
 
 	return
 
 }
 
 func main() {
-	rand.Seed(time.Now().UnixNano())
-
-	http.HandleFunc("/", handle)
-
-	log.Fatal(http.ListenAndServe(":6565", nil))
+	listener, err := net.Listen("tcp", ":6575")
+	if err != nil {
+		fmt.Println("Ошибка при запуске сервера:", err.Error())
+		return
+	}
+	defer listener.Close()
+	for {
+		conn, err := listener.Accept()
+		if err != nil {
+			fmt.Println("Ошибка при принятии соединения:", err.Error())
+			continue
+		}
+		go handle(conn)
+	}
 }
