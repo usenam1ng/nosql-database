@@ -9,12 +9,6 @@ import (
 	"time"
 )
 
-type connectionReport struct {
-	ShortUrl string `json:"shortURL"`
-	OutLink  string `json:"outLink"`
-	Host     string `json:"originHost"`
-}
-
 type JSONE struct {
 	ID       int    `json:"id"`
 	PID      int    `json:"pid"`
@@ -53,23 +47,75 @@ func manipulateJSONE(conn []JSONE, url string) (int, int, bool) {
 }
 
 func report() {
-	var connect []JSONE
+	var bs []JSONE
+	ans := make(map[string]interface{})
+
 	file, err := os.ReadFile("stat.json")
 	if err != nil {
-		fmt.Println("no file")
+		fmt.Println("нету файла")
 		return
 	}
 
 	if len(file) == 0 {
-		connect = []JSONE{}
+		fmt.Println("пустой файл, соберите статистику")
+		return
 	}
 
-	err = json.Unmarshal(file, &connect)
+	err = json.Unmarshal(file, &bs)
 	if err != nil {
 		fmt.Println("не анмаршалит")
 		return
 	}
 
+	for _, entry := range bs {
+		if entry.SourceIP != "" && entry.Time != "" {
+			ans[entry.SourceIP] = make(map[string]interface{})
+			var minTime, maxTime time.Time
+			minTime, err := time.Parse("2006-01-02 15:04:05", entry.Time)
+			if err != nil {
+				fmt.Println("Ошибка парсинга даты 1:", err)
+				return
+			}
+			for _, i := range bs {
+				if i.Time != "" {
+					data, err := time.Parse("2006-01-02 15:04:05", i.Time)
+					if err != nil {
+						fmt.Println("Ошибка парсинга даты 2:", err)
+						return
+					}
+					if data.Before(minTime) {
+						minTime = data
+					}
+					if data.After(maxTime) {
+						maxTime = data
+					}
+				}
+			}
+			mTime := minTime.Format("2006-01-02 15:04:05")
+			mxTime := maxTime.Format("2006-01-02 15:04:05")
+			ax := mTime + " - " + mxTime
+
+			ans[ax] = make(map[string]interface{})
+
+			for _, i := range bs {
+				if i.ShortURL != " " && i.ShortURL != "" && i.ShortURL != "\n" {
+					ans[ax].(map[string]interface{})[i.ShortURL] = i.Count
+				}
+			}
+		}
+	}
+
+	jsonData, err := json.MarshalIndent(ans, "", "  ")
+	if err != nil {
+		fmt.Println("не маршалит")
+		return
+	}
+
+	err = os.WriteFile("report.json", jsonData, 0644)
+	if err != nil {
+		fmt.Println("не пишет в файл")
+		return
+	}
 }
 
 func statConnections(url, shortURL, ip string) {
@@ -89,7 +135,7 @@ func statConnections(url, shortURL, ip string) {
 
 	file, err := os.ReadFile("stat.json")
 	if err != nil {
-		fmt.Println("no file")
+		fmt.Println("нету файла")
 		return
 	}
 
@@ -140,12 +186,7 @@ func statConnections(url, shortURL, ip string) {
 		return
 	}
 
-	fmt.Println("Если хотите получить отчет введите - 1, если нет - 0")
-	var a int
-	fmt.Scan(&a)
-	if a == 1 {
-		report()
-	}
+	report()
 }
 
 func handle(conn net.Conn) {
