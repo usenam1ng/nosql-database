@@ -18,8 +18,8 @@ type connectionReport struct {
 type JSONE struct {
 	ID       int    `json:"id"`
 	PID      int    `json:"pid"`
-	URL      string `json:"url"`
-	ShortURL string `json:"shortURL"`
+	ShortURL string `json:"ShortUrl"`
+	URL      string `json:"URL"`
 	SourceIP string `json:"sourceIP"`
 	Time     string `json:"time"`
 	Count    int    `json:"count"`
@@ -29,41 +29,47 @@ type Payload struct {
 	Fullstat []string `json:"Fullstat"`
 }
 
-func pid(conn []JSONE, url string) int {
+func manipulateJSONE(conn []JSONE, url string) (int, int, bool) {
 	PID := 0
-	for _, connect := range conn {
+	maxID := 0
+	indexURL := -1
+
+	for index, connect := range conn {
 		if connect.URL == url {
 			PID = connect.ID
+			indexURL = index
+			conn[index].Count++
 		}
-	}
-	return PID
-}
-func id(conn []JSONE) int {
-	maxID := 0
-	for _, connect := range conn {
 		if connect.ID > maxID {
 			maxID = connect.ID
 		}
 	}
-	return maxID + 1
+
+	if indexURL == -1 {
+		return maxID + 1, PID, true
+	}
+
+	return maxID + 1, PID, false
 }
 
-func par(conn []JSONE, url string) bool {
-	for _, connect := range conn {
-		if connect.URL == url {
-			return false
-		}
+func report() {
+	var connect []JSONE
+	file, err := os.ReadFile("stat.json")
+	if err != nil {
+		fmt.Println("no file")
+		return
 	}
-	return true
-}
 
-func count(conn []JSONE, url string) {
-	for index := range conn {
-		if conn[index].URL == url {
-			conn[index].Count++
-			return
-		}
+	if len(file) == 0 {
+		connect = []JSONE{}
 	}
+
+	err = json.Unmarshal(file, &connect)
+	if err != nil {
+		fmt.Println("не анмаршалит")
+		return
+	}
+
 }
 
 func statConnections(url, shortURL, ip string) {
@@ -77,7 +83,7 @@ func statConnections(url, shortURL, ip string) {
 
 	new_conn := JSONE{
 		SourceIP: ip,
-		Time:     time.Now().Format(""),
+		Time:     time.Now().Format("2006-01-02 15:04:05"),
 		Count:    1,
 	}
 
@@ -101,16 +107,25 @@ func statConnections(url, shortURL, ip string) {
 		connect = []JSONE{}
 	}
 
-	parent_conn.ID = id(connect)
+	newPID, existingPID, isNew := manipulateJSONE(connect, parent_conn.URL)
 
-	if par(connect, parent_conn.URL) == true {
+	parent_conn.ID = newPID
+
+	if isNew == true {
 		connect = append(connect, parent_conn)
 	} else {
-		count(connect, parent_conn.URL)
+		for index := range connect {
+			if connect[index].URL == url {
+				connect[index].Count++
+				return
+			}
+		}
 	}
 
-	new_conn.ID = id(connect)
-	new_conn.PID = pid(connect, url)
+	newPID, existingPID, isNew = manipulateJSONE(connect, parent_conn.URL)
+
+	new_conn.ID = newPID
+	new_conn.PID = existingPID
 	connect = append(connect, new_conn)
 
 	jsonData, err := json.MarshalIndent(connect, "", "  ")
@@ -123,6 +138,13 @@ func statConnections(url, shortURL, ip string) {
 	if err != nil {
 		fmt.Println("не пишет в файл")
 		return
+	}
+
+	fmt.Println("Если хотите получить отчет введите - 1, если нет - 0")
+	var a int
+	fmt.Scan(&a)
+	if a == 1 {
+		report()
 	}
 }
 
@@ -141,7 +163,6 @@ func handle(conn net.Conn) {
 	statConnections(elements[0], elements[1], elements[2])
 
 	return
-
 }
 
 func main() {
